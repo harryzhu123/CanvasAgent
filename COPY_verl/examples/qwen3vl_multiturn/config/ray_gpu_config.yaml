@@ -1,0 +1,31 @@
+# Ray GPU Resource Configuration
+# This config ensures training uses specific GPUs while tools use others
+
+ray_kwargs:
+  ray_init:
+    # Connect to Ray cluster or start new one
+    address: null  # null = start new cluster, 'auto' = connect to existing
+
+    # Runtime environment
+    runtime_env:
+      env_vars:
+        # Ensure Ray only sees GPU 3,4,5,6
+        CUDA_VISIBLE_DEVICES: "3,4,5,6"
+
+    # Resource configuration
+    num_cpus: 48  # Adjust based on your CPU cores
+    num_gpus: 4   # Training will use these 4 GPUs
+
+    # Dashboard
+    dashboard_host: "0.0.0.0"
+    dashboard_port: 8265
+
+    # Logging
+    logging_level: "info"
+    log_to_driver: true
+
+# Explanation:
+# 1. CUDA_VISIBLE_DEVICES=3,4,5,6 in runtime_env ensures Ray only sees these GPUs
+# 2. This completely hides GPU 0 (40GB used) and GPU 2 (74GB used) from Ray
+# 3. All Ray actors (training + tools) will only use GPU 3,4,5,6
+# 4. Tools will share these GPUs with training, but with lower memory footprint

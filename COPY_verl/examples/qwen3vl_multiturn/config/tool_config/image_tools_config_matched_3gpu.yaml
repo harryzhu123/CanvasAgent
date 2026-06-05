@@ -1,0 +1,273 @@
+# Image Tools Configuration - 3 GPU eval mode
+# Physical GPU allocation strategy on this server:
+#   GPU 5: ImageGeneration + SR
+#   GPU 6: ImageEdit + Grounding + SAM
+# Main rollout model should use GPU 4.
+
+tools:
+  # 1. ImageGeneration - Generate images from text prompts (FLUX.2 Klein) -> GPU 5
+  - class_name: "verl.tools.image_generation_tool.ImageGenerationTool"
+    config:
+      type: native
+      model_name: "/nfsdata4/zhuhairui/FLUX.2-klein-4B"
+      num_workers: 1
+      num_gpus_per_worker: 0
+      gpu_id: "5"
+      default_height: 512
+      default_width: 512
+      rate_limit: 10
+      enable_global_rate_limit: true
+    tool_schema:
+      type: function
+      function:
+        name: ImageGeneration
+        description: "Generates a high-quality image from scratch based on a descriptive text prompt."
+        parameters:
+          type: object
+          properties:
+            prompt:
+              type: string
+              description: "A detailed, descriptive prompt specifying style, composition, and subject."
+          required:
+            - prompt
+
+  # 2. Crop - Crop images to specific regions
+  - class_name: "verl.tools.image_crop_tool.ImageCropTool"
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: Crop
+        description: "Crops the image to a specific region defined by a bounding box."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The source image ID (e.g., 'img_1')."
+            bbox:
+              type: string
+              description: "Coordinates in [xmin, ymin, xmax, ymax] format (0-1000)."
+          required:
+            - bbox
+
+  # 3. ImageEdit - Edit images based on text instructions (FLUX.2 Klein) -> GPU 6
+  - class_name: "verl.tools.image_edit_tool.ImageEditTool"
+    config:
+      type: native
+      model_name: "/nfsdata4/zhuhairui/FLUX.2-klein-4B"
+      num_workers: 1
+      num_gpus_per_worker: 0
+      gpu_id: "6"
+      rate_limit: 10
+      enable_global_rate_limit: true
+    tool_schema:
+      type: function
+      function:
+        name: ImageEdit
+        description: "Modifies an existing image (adding/removing objects, changing styles). Requires a reference image. Supports optional mask for localized editing."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The ID of the image to modify."
+            edit_prompt:
+              type: string
+              description: "Instructions for the specific changes desired."
+            masked_image:
+              type: string
+              description: "Optional: A mask image ID to localize the edit region."
+          required:
+            - edit_prompt
+
+  # 4. OCR - Optical Character Recognition
+  - class_name: "verl.tools.image_ocr_tool.OCRTool"
+    config:
+      type: native
+      use_det: true
+      use_cls: false
+      use_rec: true
+    tool_schema:
+      type: function
+      function:
+        name: OCR
+        description: "Optical Character Recognition. Detects and transcribes text within an image."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The image ID containing text."
+          required: []
+
+  # 5. Grounding - Locate objects in images -> GPU 6
+  - class_name: "verl.tools.image_grounding_tool.ImageGroundingTool"
+    config:
+      type: native
+      model_dir: "/nfsdata4/zhuhairui/GroundingDINO"
+      num_workers: 1
+      num_gpus_per_worker: 0
+      gpu_id: "6"
+      rate_limit: 20
+      enable_global_rate_limit: true
+    tool_schema:
+      type: function
+      function:
+        name: Grounding
+        description: "Locates specific objects and returns normalized coordinates [xmin, ymin, xmax, ymax] (0-1000)."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The image ID."
+            reference_text:
+              type: string
+              description: "Description of the object(s) to locate."
+          required:
+            - reference_text
+
+  # 6. Rotate - Rotate images by fixed angles
+  - class_name: "verl.tools.image_rotate_tool.ImageRotateTool"
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: Rotate
+        description: "Rotates the image by a fixed angle to correct orientation."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The image ID."
+            angle:
+              type: integer
+              enum: ["45", "90", "180"]
+              description: "Clockwise rotation angle."
+          required:
+            - angle
+
+  # 7. Flip - Horizontal flip
+  - class_name: "verl.tools.image_flip_tool.ImageFlipTool"
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: Flip
+        description: "Performs a horizontal flip (mirroring) of the image."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The image ID."
+          required: []
+
+  # 8. SAM - Segment Anything Model -> GPU 6
+  - class_name: "verl.tools.image_sam_tool.ImageSAMTool"
+    config:
+      type: native
+      model_path: "/nfsdata4/zhuhairui/sam_vit_h.pth"
+      model_type: "vit_h"
+      num_workers: 1
+      num_gpus_per_worker: 0
+      gpu_id: "6"
+      rate_limit: 20
+      enable_global_rate_limit: true
+    tool_schema:
+      type: function
+      function:
+        name: SAM
+        description: "Segment Anything Model. Generates a precise segmentation mask for an object within a bounding box."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The image ID."
+            bbox:
+              type: string
+              description: "Target area in [xmin, ymin, xmax, ymax] format (0-1000)."
+          required:
+            - bbox
+
+  # 9. SR - Super Resolution (PyTorch CUDA version) -> GPU 5
+  - class_name: "verl.tools.image_sr_tool_pytorch.ImageSRToolPyTorch"
+    config:
+      type: native
+      model_name: "RealESRGAN_x4plus"
+      weight_path: "/nfsdata4/zhuhairui/RealESRGAN_x4.pth"
+      scale: 4
+      num_workers: 1
+      num_gpus_per_worker: 0
+      gpu_id: "5"
+      tile_size: 512
+      rate_limit: 20
+      enable_global_rate_limit: true
+    tool_schema:
+      type: function
+      function:
+        name: SR
+        description: "Super-Resolution. Enhances and upscales an image to 4x its original resolution."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The image ID to enhance."
+          required: []
+
+  # 10. Extract - Extract objects using masks
+  - class_name: "verl.tools.image_extract_tool.ImageExtractTool"
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: Extract
+        description: "Extracts an object from an image using a mask, returning a PNG with a transparent background."
+        parameters:
+          type: object
+          properties:
+            image:
+              type: string
+              description: "The source image ID."
+            mask:
+              type: string
+              description: "The mask image ID produced by SAM, such as 'SAM_0'."
+          required:
+            - mask
+
+  # 11. Overlayer - Composite text or objects onto images
+  - class_name: "verl.tools.image_overlayer_tool.ImageOverlayerTool"
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: Overlayer
+        description: "Composites an object or text onto a background image at a specified position."
+        parameters:
+          type: object
+          properties:
+            base_image:
+              type: string
+              description: "Optional background image ID. If omitted, the initial input image is used."
+            overlay_type:
+              type: string
+              enum: ["text", "object"]
+              description: "Type of content to overlay."
+            content:
+              type: string
+              description: "If overlay_type is 'text', the text string to render. If overlay_type is 'object', this MUST be an existing transparent-background RGBA image ID from the current image list/shared tool outputs, typically produced by Extract, such as 'Extract_0'. Do not use a natural-language object description, bbox coordinates, a mask ID, or a regular RGB image."
+            position:
+              type: string
+              description: "Center position in [x, y] format (0-1000). Default is [500, 500]."
+          required:
+            - overlay_type
+            - content

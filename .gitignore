@@ -1,0 +1,27 @@
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Training/runtime artifacts
+wandb/
+checkpoints/
+evals/
+log/
+logs/
+eval_output/
+*.wandb
+*.pt
+*.pth
+*.safetensors
+
+# Local envs
+.env
+.venv/
+env/
+
+# OS/editor
+.DS_Store
+.vscode/
