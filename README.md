@@ -2,6 +2,10 @@
 
 [Chinese version](README-ZN.md)
 
+## Usage Notice
+
+This repository is provided for research and educational purposes only. Commercial use, including but not limited to commercial deployment, paid services, product integration, or redistribution for commercial gain, is not permitted without prior written permission from the project authors.
+
 ## Qwen3-VL SFT + RL Training Pipeline
 
 This document describes the training pipeline of CanvasAgent, from **LLaMA-Factory SFT** to **verl + Ray + GRPO RL**. The project trains a multi-turn visual tool-use agent that observes images, plans image operations, invokes visual tools, and produces a final result according to the user goal.
