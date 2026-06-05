@@ -26,9 +26,9 @@ ShareGPT 多模态数据
 
 | 用途 | 路径 |
 | --- | --- |
-| LLaMA-Factory 代码与 SFT 配置 | `/COPY_LLaMA-Factory` |
-| SFT 配置 | `/COPY_LLaMA-Factory/qwen3-vl.yaml` |
-| SFT 数据注册 | `/COPY_LLaMA-Factory/data/dataset_info.json` |
+| LLaMA-Factory 代码与 SFT 配置 | `/LLaMA-Factory` |
+| SFT 配置 | `/LLaMA-Factory/qwen3-vl.yaml` |
+| SFT 数据注册 | `/LLaMA-Factory/data/dataset_info.json` |
 | SFT 数据 | `/zhuhairui/data/smartagentV2/for-cluster` |
 | verl 多轮 RL 目录 | `/verl/examples/qwen3vl_multiturn` |
 | RL parquet 数据 | `/RL10kV2/data/verl_parquet` |
@@ -97,7 +97,7 @@ bf16: true
 启动 SFT：
 
 ```bash
-cd /COPY_LLaMA-Factory
+cd /LLaMA-Factory
 source /env/llama/bin/activate
 llamafactory-cli train qwen3-vl.yaml
 ```
@@ -171,7 +171,7 @@ bash run_qwen3vl-8b_rl10kV2.sh \
 1. 检查 SFT 数据：
 
 ```bash
-cd /COPY_LLaMA-Factory
+cd /LLaMA-Factory
 rg -n "smartagentV2-multiturn-reason|smartagentV2-val-reason" data/dataset_info.json
 ```
 
