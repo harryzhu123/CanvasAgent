@@ -1,45 +1,47 @@
 # CanvasAgent: Enabling Complex Image Creation and Editing via Visual Tool Orchestration
 
-## Qwen3-VL SFT + RL 训练流程
+[Chinese version](README-ZN.md)
 
-本文档记录本项目从 **LLaMA-Factory SFT** 到 **verl + Ray + GRPO RL** 的训练链路。当前任务是训练一个多轮视觉工具调用 Agent：模型根据用户目标观察图片、规划操作、调用图像工具，并输出最终结果。
+## Qwen3-VL SFT + RL Training Pipeline
 
-## 项目目标
+This document describes the training pipeline of CanvasAgent, from **LLaMA-Factory SFT** to **verl + Ray + GRPO RL**. The project trains a multi-turn visual tool-use agent that observes images, plans image operations, invokes visual tools, and produces a final result according to the user goal.
 
-基础模型使用 `Qwen3-VL-8B-Instruct`。训练分两段：
+## Project Goal
 
-1. **SFT**：让模型学会多轮工具调用格式、工具参数写法、图像 ID 引用方式和基本任务轨迹。
-2. **RL**：在真实交互环境中 rollout 多条轨迹，根据分数信号用 GRPO 继续优化模型的工具选择、调用顺序和最终输出质量。
+The base model is `Qwen3-VL-8B-Instruct`. Training has two stages:
 
-简化流程如下：
+1. **SFT**: Teach the model the multi-turn tool-call format, tool argument conventions, image ID references, and basic task trajectories.
+2. **RL**: Roll out multiple trajectories in an interactive environment, then use GRPO to further optimize tool selection, tool-call order, and final output quality from trajectory scores.
+
+High-level flow:
 
 ```text
-ShareGPT 多模态数据
+ShareGPT multimodal data
   -> LLaMA-Factory full SFT
   -> SFT checkpoint
-  -> verl 多轮 rollout
-  -> GRPO 更新策略模型
+  -> verl multi-turn rollout
+  -> GRPO policy update
   -> RL checkpoint
 ```
 
-## 关键目录
+## Key Directories
 
-| 用途 | 路径 |
+| Purpose | Path |
 | --- | --- |
-| LLaMA-Factory 代码与 SFT 配置 | `/LLaMA-Factory` |
-| SFT 配置 | `/LLaMA-Factory/qwen3-vl.yaml` |
-| SFT 数据注册 | `/LLaMA-Factory/data/dataset_info.json` |
-| SFT 数据 | `/zhuhairui/data/smartagentV2/for-cluster` |
-| verl 多轮 RL 目录 | `/verl/examples/qwen3vl_multiturn` |
-| RL parquet 数据 | `/RL10kV2/data/verl_parquet` |
-| RL checkpoint 输出 | `/verl/checkpoints` |
-| RL 日志 | `/verl/examples/qwen3vl_multiturn/log` |
+| LLaMA-Factory code and SFT config | `/LLaMA-Factory` |
+| SFT config | `/LLaMA-Factory/qwen3-vl.yaml` |
+| SFT dataset registry | `/LLaMA-Factory/data/dataset_info.json` |
+| SFT data | `/zhuhairui/data/smartagentV2/for-cluster` |
+| verl multi-turn RL code | `/verl/examples/qwen3vl_multiturn` |
+| RL parquet data | `/RL10kV2/data/verl_parquet` |
+| RL checkpoint output | `/verl/checkpoints` |
+| RL logs | `/verl/examples/qwen3vl_multiturn/log` |
 
-说明：历史脚本里常见的 `/jiangwenhao/zhuhairui` 是另一种运行路径写法，和当前项目目录对应同一套数据。
+Historical scripts may use `/jiangwenhao/zhuhairui`; it is another runtime path for the same project data.
 
-## 环境准备
+## Environment
 
-进入训练环境：
+Enter the training environment:
 
 ```bash
 cd /verl
@@ -50,17 +52,17 @@ export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ```
 
-如果需要记录训练曲线，可以通过环境变量注入 WandB key，不要把 key 写入脚本：
+If training curves should be logged, inject the WandB key through the environment instead of hardcoding it in scripts:
 
 ```bash
 export WANDB_API_KEY="<your-wandb-key>"
 ```
 
-安全注意：部分历史运行脚本里曾经直接写入 WandB 或 API key。对外分享或提交前，建议先把这些 key 改为读取环境变量，并轮换已经暴露过的旧 key。
+Security note: some historical run scripts used to contain hardcoded WandB or API keys. Before sharing or submitting code, replace those values with environment-variable reads and rotate any exposed keys.
 
-## 阶段一：SFT
+## Stage 1: SFT
 
-SFT 在 LLaMA-Factory 中完成，核心配置是：
+SFT is run with LLaMA-Factory. The core config is:
 
 ```yaml
 model_name_or_path: /jiangwenhao/Qwen3-VL-8B-Instruct
@@ -81,7 +83,7 @@ deepspeed: examples/deepspeed/ds_z3_offload_config.json
 bf16: true
 ```
 
-数据在 `dataset_info.json` 中注册为 ShareGPT 多模态格式：
+The data is registered in `dataset_info.json` as ShareGPT-style multimodal data:
 
 ```json
 "smartagentV2-multiturn-reason": {
@@ -94,7 +96,7 @@ bf16: true
 }
 ```
 
-启动 SFT：
+Launch SFT:
 
 ```bash
 cd /LLaMA-Factory
@@ -102,39 +104,39 @@ source /env/llama/bin/activate
 llamafactory-cli train qwen3-vl.yaml
 ```
 
-当前可用的 SFT checkpoint 示例：
+Available SFT checkpoints include:
 
 ```text
 /zhuhairui/LLaMA-Factory/saves/qwen3-vl-8b/full/smartagentV3/checkpoint-2142
 /zhuhairui/LLaMA-Factory/saves/qwen3-vl-8b/full/smartagentV2-multiturn/checkpoint-1358
 ```
 
-其中 `smartagentV3/checkpoint-2142` 是后续 RL 脚本里常用的初始化模型。
+`smartagentV3/checkpoint-2142` is commonly used as the initialization checkpoint for RL.
 
-## SFT 学到什么
+## What SFT Teaches
 
-SFT 主要解决“会不会按格式做事”的问题：
+SFT mainly teaches the model how to follow the tool-use format:
 
-- 识别系统 prompt 里的工具 schema。
-- 生成合法的工具调用 JSON。
-- 在多轮对话中引用 `img_1`、`ImageEdit_0` 等图像 ID。
-- 学习 Crop、Grounding、SAM、SR、OCR、ImageGeneration、ImageEdit 等工具的基本使用顺序。
-- 形成初步 reasoning 和 terminate 行为。
+- Read the tool schemas in the system prompt.
+- Produce valid JSON tool calls.
+- Reference image IDs such as `img_1` and `ImageEdit_0` across turns.
+- Learn basic usage patterns for Crop, Grounding, SAM, SR, OCR, ImageGeneration, ImageEdit, and related tools.
+- Develop initial reasoning and termination behavior.
 
-SFT 本身只是模仿离线轨迹，不能保证模型真的选择最优工具链，也不能直接优化最终图像质量。因此需要第二阶段 RL。
+SFT only imitates offline trajectories. It does not guarantee optimal tool-chain selection or directly optimize final image quality, so a second RL stage is used.
 
-## 阶段二：RL
+## Stage 2: RL
 
-RL 在 verl 中运行。核心思想是：每个 prompt 采样多条多轮轨迹，轨迹中真实调用环境能力，最后根据轨迹分数用 GRPO 更新模型。
+RL is run with verl. For each prompt, the model samples multiple multi-turn trajectories, interacts with the environment, and updates the policy with GRPO from trajectory scores.
 
-常用主脚本：
+Main scripts:
 
-| 脚本 | 用途 |
+| Script | Purpose |
 | --- | --- |
-| `run_qwen3vl-8b_rl10kV2.sh` | GRPO 训练主脚本 |
-| `run_qwen3vl-8b_rl10k_test.sh` | 测试或快速运行脚本 |
+| `run_qwen3vl-8b_rl10kV2.sh` | Main GRPO training script |
+| `run_qwen3vl-8b_rl10k_test.sh` | Test or quick-run script |
 
-GRPO 启动示例：
+Launch GRPO:
 
 ```bash
 cd /verl/examples/qwen3vl_multiturn
@@ -146,42 +148,42 @@ bash run_qwen3vl-8b_rl10kV2.sh \
   data.val_files=/RL10kV2/data/verl_parquet/test.parquet
 ```
 
-当前 RL 训练的常用配置：
+Common RL settings:
 
-| 参数 | 值 |
+| Parameter | Value |
 | --- | --- |
-| 算法 | GRPO |
-| rollout backend | `sglang` async |
+| Algorithm | GRPO |
+| Rollout backend | `sglang` async |
 | `train_batch_size` | 6 prompts |
-| `rollout.n` | 2 到 8，生产常用 8 |
-| real batch | `train_batch_size * rollout.n` |
+| `rollout.n` | 2 to 8, commonly 8 for production |
+| Real batch | `train_batch_size * rollout.n` |
 | `ppo_mini_batch_size` | 6 |
 | `ppo_micro_batch_size_per_gpu` | 1 |
 | `n_gpus_per_node` | 6 |
 | `rollout.agent.num_workers` | 4 |
-| `max_assistant_turns` | 6 到 12 |
+| `max_assistant_turns` | 6 to 12 |
 | `max_single_turn_length` | 1536 |
-| learning rate | `1e-6` |
+| Learning rate | `1e-6` |
 | KL loss | `use_kl_loss=True`, `kl_loss_coef=0.001` |
 
-注意：real batch 必须能被训练 GPU 数整除。例如 `train_batch_size=6` 且 `rollout.n=8` 时，real batch 为 48，`48 / 6 = 8`，可以整除。
+The real batch must be divisible by the number of training GPUs. For example, with `train_batch_size=6` and `rollout.n=8`, the real batch is 48, and `48 / 6 = 8`.
 
-## 推荐运行顺序
+## Recommended Run Order
 
-1. 检查 SFT 数据：
+1. Check the SFT data:
 
 ```bash
 cd /LLaMA-Factory
 rg -n "smartagentV2-multiturn-reason|smartagentV2-val-reason" data/dataset_info.json
 ```
 
-2. 训练或选择 SFT checkpoint：
+2. Train or select an SFT checkpoint:
 
 ```bash
 llamafactory-cli train qwen3-vl.yaml
 ```
 
-3. 启动 GRPO RL：
+3. Start GRPO RL:
 
 ```bash
 cd /verl/examples/qwen3vl_multiturn
@@ -189,4 +191,4 @@ bash run_qwen3vl-8b_rl10kV2.sh \
   actor_rollout_ref.model.path=/zhuhairui/LLaMA-Factory/saves/qwen3-vl-8b/full/smartagentV3/checkpoint-2142
 ```
 
-4. 训练完成后，检查 `/verl/checkpoints` 下生成的 run 目录和 checkpoint。
+4. After training, inspect the generated run directory and checkpoint under `/verl/checkpoints`.
