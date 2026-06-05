@@ -1,5 +1,9 @@
 # CanvasAgent: Enabling Complex Image Creation and Editing via Visual Tool Orchestration
 
+## 使用说明
+
+本仓库仅供研究与教育用途。未经项目作者事先书面许可，不得用于商业用途，包括但不限于商业部署、付费服务、产品集成，或以商业获利为目的的再分发。
+
 ## Qwen3-VL SFT + RL 训练流程
 
 本文档记录本项目从 **LLaMA-Factory SFT** 到 **verl + Ray + GRPO RL** 的训练链路。当前任务是训练一个多轮视觉工具调用 Agent：模型根据用户目标观察图片、规划操作、调用图像工具，并输出最终结果。
