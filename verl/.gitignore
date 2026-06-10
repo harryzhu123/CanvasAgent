@@ -67,6 +67,8 @@ output.txt
 
 # Django stuff:
 *.log
+*.aux
+*.out
 local_settings.py
 
 # Flask stuff:
